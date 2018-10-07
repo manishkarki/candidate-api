@@ -4,6 +4,7 @@ import com.hubspot.candidate.hubspotapi.entity.Country;
 import com.hubspot.candidate.hubspotapi.entity.Partner;
 import com.hubspot.candidate.hubspotapi.service.CandidateApiService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
@@ -14,7 +15,10 @@ import java.util.List;
 public class CandidateApiController {
 
 	@Autowired
-	public CandidateApiService service;
+	private CandidateApiService service;
+
+	@Autowired
+	private Environment environment;
 
 	private List<Partner> partners;
 	
@@ -37,6 +41,6 @@ public class CandidateApiController {
 
 		String invitationList = service.stringToJSON(countries);
 
-		return service.makeRequest(invitationList);
+		return service.makeRequest(invitationList, environment.getRequiredProperty("api.postUrl"));
 	}
 }

@@ -7,6 +7,8 @@ import com.hubspot.candidate.hubspotapi.entity.Partner;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 import java.sql.Date;
@@ -16,6 +18,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class CandidateApiServiceImpl implements CandidateApiService {
+	@Autowired
+	private Environment environment;
 
 	@Override
 	public List<Partner> getAvailablePartners() {
@@ -23,7 +27,7 @@ public class CandidateApiServiceImpl implements CandidateApiService {
 		try {
 			List<Partner> partners = new ArrayList<>();
 			//get the json data retrieved by calling the api
-			String jsonData = readUrl();
+			String jsonData = readUrl(environment.getRequiredProperty("api.getUrl"));
 			JSONParser parser = new JSONParser();
 			Object object = parser.parse(jsonData);
 

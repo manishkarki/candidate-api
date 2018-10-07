@@ -40,29 +40,24 @@ public interface CandidateApiService {
 
     RestTemplate restTemplate = new RestTemplate();
 
-    default String readUrl() {
-        return restTemplate.getForObject(getURL, String.class);
+    default String readUrl(String url) {
+        return restTemplate.getForObject(url, String.class);
     }
 
-    default String makeRequest(String invitations) {
+    default String makeRequest(String invitations, String postUrl) {
 
-        try {
-            //declare and set headers to the entity
-            HttpHeaders httpHeaders = new HttpHeaders();
-            httpHeaders.setAcceptCharset(new ArrayList<>(Arrays.asList(StandardCharsets.UTF_8)));
-            httpHeaders.set("Accept", "application/json");
-            httpHeaders.set("Content-type", "application/json");
-            httpHeaders.add("Authorization", ("userKey=fd87898e167586dc6c601a432d0d"));
-            HttpEntity<String> entity1 = new HttpEntity<>(invitations, httpHeaders);
+        //declare and set headers to the entity
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setAcceptCharset(new ArrayList<>(Arrays.asList(StandardCharsets.UTF_8)));
+        httpHeaders.set("Accept", "application/json");
+        httpHeaders.set("Content-type", "application/json");
+        httpHeaders.add("Authorization", ("userKey=fd87898e167586dc6c601a432d0d"));
+        HttpEntity<String> entity1 = new HttpEntity<>(invitations, httpHeaders);
 
-            // call the api
-            ResponseEntity<String> responseEntity = restTemplate.postForEntity(postURL, entity1, String.class);
-            return responseEntity.getBody();
+        // call the api
+        ResponseEntity<String> responseEntity = restTemplate.postForEntity(postUrl, entity1, String.class);
+        return responseEntity.getBody();
 
-        } catch (Exception e) {
-            //log some message here
-            return e.toString();
-        }
     }
 
     //as this will be common to all
