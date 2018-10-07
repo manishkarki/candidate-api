@@ -1,15 +1,13 @@
 package com.hubspot.candidate.hubspotapi.service;
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.hubspot.candidate.hubspotapi.entity.Country;
 import com.hubspot.candidate.hubspotapi.entity.Partner;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpEntity;
@@ -20,6 +18,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.nio.charset.StandardCharsets;
 import java.sql.Date;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
@@ -70,28 +69,19 @@ public class CandidateApiServiceImpl implements CandidateApiService {
     @Override
     public List<Partner> getAvailablePartners() {
         try {
-            List<Partner> partners = new ArrayList<>();
             //get the json data retrieved by calling the api
             String jsonData = readUrl(environment.getRequiredProperty("api.getUrl"));
-            JSONParser parser = new JSONParser();
-            Object object = parser.parse(jsonData);
+            //use the parser to read obj
+            ObjectMapper objectMapper = new ObjectMapper();
+            objectMapper.setDateFormat(new SimpleDateFormat("yyyy-MM-dd"));
+            JsonFactory jsonFactory = objectMapper.getFactory();
+            JsonParser jsonParser = jsonFactory.createParser(jsonData);
 
-            JSONObject json = (JSONObject) object;
-            //from the json, get param
-            JSONArray result = (JSONArray) json.get("partners");
+            JsonNode json = objectMapper.readTree(jsonParser);
 
-            Gson gson = new GsonBuilder().setDateFormat("yyyy-MM-dd").create();
-
-            for (int i = 0; i < result.size(); i++) {
-
-                JSONObject jsonPartner = (JSONObject) result.get(i);
-
-                Partner p = gson.fromJson(jsonPartner.toJSONString(), Partner.class);
-
-                partners.add(p);
-            }
-
-            return partners;
+            return objectMapper.readValue(json.get("partners").toString(),
+                    objectMapper.getTypeFactory().constructCollectionType(
+                            List.class, Partner.class));
 
         } catch (Exception e) {
             e.printStackTrace();
