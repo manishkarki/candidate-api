@@ -13,7 +13,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 @PropertySource("classpath:/application.properties")
 public class HubspotAPIConfig {
 
-    ////To resolve ${} in @Value, right now isn't being used
+    //To resolve ${} in @Value, right now isn't being used
     @Bean
     public static PropertySourcesPlaceholderConfigurer propertyConfigInDev() {
         return new PropertySourcesPlaceholderConfigurer();

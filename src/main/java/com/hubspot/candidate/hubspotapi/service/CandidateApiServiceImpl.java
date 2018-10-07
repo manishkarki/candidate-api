@@ -1,5 +1,8 @@
 package com.hubspot.candidate.hubspotapi.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.hubspot.candidate.hubspotapi.entity.Country;
@@ -9,8 +12,13 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
+import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.util.*;
 import java.util.Map.Entry;
@@ -18,177 +26,215 @@ import java.util.stream.Collectors;
 
 @Service
 public class CandidateApiServiceImpl implements CandidateApiService {
-	@Autowired
-	private Environment environment;
+    private RestTemplate restTemplate;
+    private Environment environment;
 
-	@Override
-	public List<Partner> getAvailablePartners() {
+    @Autowired
+    public CandidateApiServiceImpl(Environment environment) {
+        this.restTemplate = new RestTemplate();
+        this.environment = environment;
+    }
 
-		try {
-			List<Partner> partners = new ArrayList<>();
-			//get the json data retrieved by calling the api
-			String jsonData = readUrl(environment.getRequiredProperty("api.getUrl"));
-			JSONParser parser = new JSONParser();
-			Object object = parser.parse(jsonData);
+    @Override
+    public String makeRequest(String invitations, String postUrl) {
+        //declare and set headers to the entity
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setAcceptCharset(new ArrayList<>(Arrays.asList(StandardCharsets.UTF_8)));
+        httpHeaders.set("Accept", "application/json");
+        httpHeaders.set("Content-type", "application/json");
+        httpHeaders.add("Authorization", ("userKey=fd87898e167586dc6c601a432d0d"));
+        HttpEntity<String> entity1 = new HttpEntity<>(invitations, httpHeaders);
 
-			JSONObject json = (JSONObject) object;
-			//from the json, get param
-			JSONArray result = (JSONArray) json.get("partners");
+        // call the api
+        ResponseEntity<String> responseEntity = restTemplate.postForEntity(postUrl, entity1, String.class);
+        return responseEntity.getBody();
+    }
 
-			Gson gson = new GsonBuilder().setDateFormat("yyyy-MM-dd").create();
+    @Override
+    public String stringToJSON(List<Country> inviteesList) {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
+        String arrayToJson = null;
+        try {
+            arrayToJson = objectMapper.writeValueAsString(inviteesList);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
 
-			for (int i = 0; i < result.size(); i++) {
+        StringBuilder s = new StringBuilder();
+        s.append("{ " + "\"" + "countries" + "\"" + ": " + arrayToJson + "}");
 
-				JSONObject jsonPartner = (JSONObject) result.get(i);
+        return s.toString();
+    }
 
-				Partner p = gson.fromJson(jsonPartner.toJSONString(), Partner.class);
+    @Override
+    public List<Partner> getAvailablePartners() {
+        try {
+            List<Partner> partners = new ArrayList<>();
+            //get the json data retrieved by calling the api
+            String jsonData = readUrl(environment.getRequiredProperty("api.getUrl"));
+            JSONParser parser = new JSONParser();
+            Object object = parser.parse(jsonData);
 
-				partners.add(p);
+            JSONObject json = (JSONObject) object;
+            //from the json, get param
+            JSONArray result = (JSONArray) json.get("partners");
 
-			}
+            Gson gson = new GsonBuilder().setDateFormat("yyyy-MM-dd").create();
 
-			return partners;
+            for (int i = 0; i < result.size(); i++) {
 
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		return null;
-	}
+                JSONObject jsonPartner = (JSONObject) result.get(i);
 
-	public List<Date> getAppropriateDate(Partner partner)
-	{
+                Partner p = gson.fromJson(jsonPartner.toJSONString(), Partner.class);
 
-		Collections.sort(partner.getAvailableDates());
+                partners.add(p);
+            }
 
-		Map<Date, Integer> startDates = new TreeMap<>();
+            return partners;
 
-		List<Date> sortedDates = partner.getAvailableDates();
+        } catch (Exception e) {
+            e.printStackTrace();
+            //customized branding can be done here
+            return null;
+        }
+    }
 
-		startDates.put(sortedDates.get(0), 0);
+    private List<Date> getAppropriateDate(Partner partner) {
 
-		for (int i = 1; i < sortedDates.size() ; i++)
-		{			
-			Date prevDate = sortedDates.get(i-1);
-			Date curDate = sortedDates.get(i);
+        Collections.sort(partner.getAvailableDates());
 
-			long diff = Math.abs(curDate.getTime() - prevDate.getTime());
-			long diffDays = diff / (24 * 60 * 60 * 1000);
+        Map<Date, Integer> startDates = new TreeMap<>();
 
-			if(diffDays == 1) {					
-				int count  = startDates.get(prevDate);
-				startDates.put(prevDate, count+1);
-				startDates.put(curDate, 1);
-			}
-			startDates.put(curDate, 0);
-		}
+        List<Date> sortedDates = partner.getAvailableDates();
 
-		return startDates.entrySet().stream()
-				.filter(startDate -> startDate.getValue() > 0)
-				.map(startDate -> startDate.getKey())
-				.collect(Collectors.toList());
-	}
+        startDates.put(sortedDates.get(0), 0);
 
-	public Map<String, List<Partner>> buildCountryDates(List<Partner> partners) {
-		Map<String, List<Partner>> countryDates = new HashMap<>();
+        for (int i = 1; i < sortedDates.size(); i++) {
+            Date prevDate = sortedDates.get(i - 1);
+            Date curDate = sortedDates.get(i);
 
-		for(Partner p : partners) {
+            long diff = Math.abs(curDate.getTime() - prevDate.getTime());
+            long diffDays = diff / (24 * 60 * 60 * 1000);
 
-			List<Partner> partnerList = new ArrayList<>();
+            if (diffDays == 1) {
+                int count = startDates.get(prevDate);
+                startDates.put(prevDate, count + 1);
+                startDates.put(curDate, 1);
+            }
+            startDates.put(curDate, 0);
+        }
 
-			if(countryDates.containsKey(p.getCountry())) {
-				partnerList = countryDates.get(p.getCountry());
-				partnerList.add(p);
-			}
-			else {
-				partnerList.add(p);
-				countryDates.put(p.getCountry(), partnerList);
-			}
-		}
+        return startDates.entrySet().stream()
+                .filter(startDate -> startDate.getValue() > 0)
+                .map(startDate -> startDate.getKey())
+                .collect(Collectors.toList());
+    }
 
-		return countryDates;
-	}
+    private Map<String, List<Partner>> buildCountryDates(List<Partner> partners) {
+        Map<String, List<Partner>> countryDates = new HashMap<>();
 
-	public Map<String, Map<Date, List<Partner>>> getInvitations(List<Partner> partnerList) {
+        for (Partner p : partners) {
 
-		Map<String, List<Partner>> countryMap = buildCountryDates(partnerList);
+            List<Partner> partnerList = new ArrayList<>();
 
-		Map<String, Map<Date, List<Partner>>> invitatonMap = new HashMap<>();
+            if (countryDates.containsKey(p.getCountry())) {
+                partnerList = countryDates.get(p.getCountry());
+                partnerList.add(p);
+            } else {
+                partnerList.add(p);
+                countryDates.put(p.getCountry(), partnerList);
+            }
+        }
 
-		for(Entry<String, List<Partner>> countryEntry : countryMap.entrySet()) {
+        return countryDates;
+    }
 
-			List<Partner> partners = countryEntry.getValue();
+    // method to get the final date, partner and country list
+    private Map<String, Map<Date, List<Partner>>> getInvitations(List<Partner> partnerList) {
+        Map<String, List<Partner>> countryMap = buildCountryDates(partnerList);
 
-			Set<Date> dates = new TreeSet<>();
+        Map<String, Map<Date, List<Partner>>> invitatonMap = new HashMap<>();
 
-			for(Partner p : partners) {
-				dates.addAll(getAppropriateDate(p));
-			}
+        for (Entry<String, List<Partner>> countryEntry : countryMap.entrySet()) {
 
-			Map<Date, List<Partner>> partnerMap = new TreeMap<>();
+            List<Partner> partners = countryEntry.getValue();
+            Set<Date> dates = new TreeSet<>();
 
-			for(Partner p : partners) {
-				List<Date> partnerDate = getAppropriateDate(p);
+            for (Partner p : partners) {
+                dates.addAll(getAppropriateDate(p));
+            }
 
-				for(Date d : partnerDate) {
-					if(dates.contains(d)) {
-						List<Partner> par = new ArrayList<>();
-						if(partnerMap.containsKey(d)) {
-							par = partnerMap.get(d);
-						}
-						par.add(p);
-						partnerMap.put(d, par);
-					}
-				}
-			}
+            Map<Date, List<Partner>> partnerMap = new TreeMap<>();
 
-			invitatonMap.put(countryEntry.getKey(), partnerMap);
+            for (Partner p : partners) {
+                List<Date> partnerDate = getAppropriateDate(p);
 
-		}
+                for (Date d : partnerDate) {
+                    if (dates.contains(d)) {
+                        List<Partner> par = new ArrayList<>();
+                        if (partnerMap.containsKey(d)) {
+                            par = partnerMap.get(d);
+                        }
+                        par.add(p);
+                        partnerMap.put(d, par);
+                    }
+                }
+            }
 
-		return invitatonMap;
-	}
+            invitatonMap.put(countryEntry.getKey(), partnerMap);
 
-	public List<Country> getInvitees(List<Partner> partners) {
+        }
 
-		List<Country> invites = new ArrayList<>();
+        return invitatonMap;
+    }
 
-		Map<String, Map<Date, List<Partner>>> invitationMap = getInvitations(partners);
+    @Override
+    public List<Country> getInvitees(List<Partner> partners) {
 
-		for(Entry<String, Map<Date, List<Partner>>> invitationEntry : invitationMap.entrySet()) {
+        List<Country> invites = new ArrayList<>();
 
-			Map<Date, List<Partner>> dateMap = invitationEntry.getValue();
+        Map<String, Map<Date, List<Partner>>> invitationMap = getInvitations(partners);
 
-			int max = -1;
-			Date date  = null;
-			List<Partner> availablePartners = null;
+        for (Entry<String, Map<Date, List<Partner>>> invitationEntry : invitationMap.entrySet()) {
 
-			for (Entry<Date, List<Partner>> entry : dateMap.entrySet()) {
+            Map<Date, List<Partner>> dateMap = invitationEntry.getValue();
 
-				List<Partner> partnerList = entry.getValue();
+            int max = -1;
+            Date date = null;
+            List<Partner> availablePartners = null;
 
-				if(partnerList.size() > max) {
-					max = partnerList.size();
-					date = entry.getKey();
-					availablePartners = partnerList;
-				}
-			}	
-			
-			Country country = new Country();
-			
-			country.setAttendeeCount(availablePartners.size());
+            for (Entry<Date, List<Partner>> entry : dateMap.entrySet()) {
 
-			List<String> emails  = new ArrayList<>();
-			for(Partner partner : availablePartners) {
-				emails.add(partner.getEmail());
-			}
-			country.setAttendees(emails);
+                List<Partner> partnerList = entry.getValue();
 
-			country.setName(invitationEntry.getKey());
-			country.setStartDate(date);
-			invites.add(country);
-		}
+                if (partnerList.size() > max) {
+                    max = partnerList.size();
+                    date = entry.getKey();
+                    availablePartners = partnerList;
+                }
+            }
 
-		return invites;
-	}
-	
+            Country country = new Country();
+
+            country.setAttendeeCount(availablePartners.size());
+
+            List<String> emails = new ArrayList<>();
+            for (Partner partner : availablePartners) {
+                emails.add(partner.getEmail());
+            }
+            country.setAttendees(emails);
+
+            country.setName(invitationEntry.getKey());
+            country.setStartDate(date);
+            invites.add(country);
+        }
+
+        return invites;
+    }
+
+    private String readUrl(String url) {
+        return restTemplate.getForObject(url, String.class);
+    }
+
 }
