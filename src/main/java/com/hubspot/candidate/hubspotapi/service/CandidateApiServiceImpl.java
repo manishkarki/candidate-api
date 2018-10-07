@@ -135,13 +135,12 @@ public class CandidateApiServiceImpl implements CandidateApiService {
         Map<String, List<Partner>> countryDates = new HashMap<>();
 
         for (Partner p : partners) {
-
-            List<Partner> partnerList = new ArrayList<>();
-
+            List<Partner> partnerList;
             if (countryDates.containsKey(p.getCountry())) {
                 partnerList = countryDates.get(p.getCountry());
                 partnerList.add(p);
             } else {
+                partnerList = new ArrayList<>();
                 partnerList.add(p);
                 countryDates.put(p.getCountry(), partnerList);
             }
